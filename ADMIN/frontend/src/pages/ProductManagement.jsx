@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
-import {
-  Search, Plus, Trash2, Edit3, X, Upload, Package, AlertTriangle,
-  Layers, Tag, Cpu, Monitor, Battery, HardDrive, RotateCcw, Smartphone, Tablet, Camera
+import { 
+  Search, Plus, Trash2, Edit3, X, Upload, Package, AlertTriangle, 
+  Layers, Tag, Cpu, Monitor, Battery, HardDrive, RotateCcw 
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -23,16 +23,15 @@ const ProductManagement = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
-
+  
   // Phân trang
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 20;
 
-  // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
-
+  
   // Form State
   const [editingProduct, setEditingProduct] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -40,19 +39,19 @@ const ProductManagement = () => {
   const [currentCategorySpecs, setCurrentCategorySpecs] = useState([]); // Lưu cấu hình các trường specs của danh mục được chọn
 
   const [priceValue, setPriceValue] = useState("");
+  const [discountPriceValue, setDiscountPriceValue] = useState(""); 
+  const [isFlashSale, setIsFlashSale] = useState(false); 
   const [stockValue, setStockValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-
+  
   // Image State
-  const [selectedFiles, setSelectedFiles] = useState([]);
-  const [previews, setPreviews] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState([]); 
+  const [previews, setPreviews] = useState([]); 
 
-  // Filters
   const [filterCategory, setFilterCategory] = useState("");
   const [filterBrand, setFilterBrand] = useState("");
   const [sortBy, setSortBy] = useState("latest");
 
-  // --- FETCH DATA ---
   const fetchData = async () => {
     try {
       const [pRes, cRes, bRes] = await Promise.all([
@@ -88,7 +87,6 @@ const ProductManagement = () => {
     }
   }, [selectedCategory, categories]);
 
-  // --- LOGIC XỬ LÝ ẢNH ---
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
     const availableSlots = 4 - previews.length;
@@ -151,6 +149,47 @@ const ProductManagement = () => {
   const currentProducts = filteredProducts.slice((currentPage - 1) * productsPerPage, currentPage * productsPerPage);
   const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
 
+  const SPEC_CONFIG = {
+  "1": [ // Điện thoại
+
+      { label: "Màn hình", name: "screen", icon: <Monitor size={14}/> },
+
+      { label: "Camera sau", name: "back_camera" },
+
+      { label: "Camera trước", name: "front_camera" },
+
+      { label: "Chipset", name: "chipset", icon: <Cpu size={14}/> },
+
+      { label: "RAM / ROM", name: "ram_rom" },
+
+      { label: "Pin", name: "battery", icon: <Battery size={14}/> },
+
+      { label: "Hệ điều hành", name: "os" },
+
+      { label: "Độ phân giải", name: "resolution" }
+
+    ],
+
+    "2": [ // Laptop
+
+      { label: "CPU", name: "cpu", icon: <Cpu size={14}/> },
+
+      { label: "Card đồ họa", name: "gpu" },
+
+      { label: "RAM", name: "ram" },
+
+      { label: "SSD", name: "ssd", icon: <HardDrive size={14}/> },
+
+      { label: "Kích thước màn hình", name: "screen_size", icon: <Monitor size={14}/> },
+
+      { label: "Pin", name: "battery", icon: <Battery size={14}/> },
+
+      { label: "Trọng lượng", name: "weight" }
+
+    ]
+
+  };
+
   const openEditModal = (product) => {
     setEditingProduct(product);
     setSelectedCategory(product.category_id.toString());
@@ -162,7 +201,20 @@ const ProductManagement = () => {
       setSpecs({});
       setPreviews([product.image]);
     }
+    
+    // Xử lý giá hiển thị
     setPriceValue(parseInt(product.price).toLocaleString('en-US'));
+    
+    // SỬA LỖI: Chỉ hiện giá sale nếu nó lớn hơn 0
+    if (product.discount_price && parseInt(product.discount_price) > 0) {
+        setDiscountPriceValue(parseInt(product.discount_price).toLocaleString('en-US'));
+    } else {
+        setDiscountPriceValue("");
+    }
+    
+    // Flash Sale dựa trên flash_sale_id có tồn tại hay không
+    setIsFlashSale(product.flash_sale_id !== null && product.flash_sale_id !== undefined);
+    
     setStockValue(product.stock);
     setSelectedFiles([]);
     setIsModalOpen(true);
@@ -173,6 +225,12 @@ const ProductManagement = () => {
     const formData = new FormData();
     formData.append('name', e.target.name.value);
     formData.append('price', priceValue.replace(/,/g, ""));
+    
+    // SỬA LỖI: Gửi chuỗi rỗng nếu không có giá sale để backend set NULL
+    const cleanDiscountPrice = discountPriceValue.replace(/,/g, "");
+    formData.append('discount_price', cleanDiscountPrice !== "" ? cleanDiscountPrice : ""); 
+    
+    formData.append('is_flash_sale', isFlashSale ? 1 : 0);
     formData.append('category_id', selectedCategory);
     formData.append('brand_id', e.target.brand_id.value);
     formData.append('stock', stockValue);
@@ -208,12 +266,15 @@ const ProductManagement = () => {
             <p>Đang quản lý <strong>{products.length}</strong> sản phẩm.</p>
           </div>
           <button className="btn-create-account" onClick={() => {
-            setEditingProduct(null); setSelectedCategory(""); setSpecs({}); setPriceValue(""); setStockValue(""); setSelectedFiles([]); setPreviews([]); setIsModalOpen(true);
+            setEditingProduct(null); setSelectedCategory(""); setSpecs({}); setPriceValue(""); 
+            setDiscountPriceValue(""); setIsFlashSale(false);
+            setStockValue(""); setSelectedFiles([]); setPreviews([]); setIsModalOpen(true);
           }}>
             <Plus size={19} /> <span>Tạo sản phẩm mới</span>
           </button>
         </header>
 
+        {/* --- BỘ LỌC VỚI ICON REFRESH MỚI --- */}
         <section className="filter-section">
           <div className="filter-container">
             <div className="search-wrapper">
@@ -260,6 +321,11 @@ const ProductManagement = () => {
               <div className="product-card" key={product.id}>
                 <div className="card-image">
                   <img src={displayImg || 'https://via.placeholder.com/200'} alt={product.name} />
+                  {product.flash_sale_id && (
+                    <div className="flash-sale-badge">
+                      <Zap size={10} fill="currentColor" /> Flash Sale
+                    </div>
+                  )}
                   <div className="category-tag">{product.category_name}</div>
                   <div className={`stock-tag ${product.stock < 10 ? 'low-stock' : ''}`}>
                     <Package size={12} /> <span>{product.stock}</span>
@@ -268,7 +334,16 @@ const ProductManagement = () => {
                 <div className="card-body">
                   <span className="brand-label">{product.brand_name}</span>
                   <h4 title={product.name}>{product.name}</h4>
-                  <div className="card-price">{parseInt(product.price).toLocaleString('vi-VN')}đ</div>
+                  <div className="card-price-container">
+                    {product.discount_price && parseInt(product.discount_price) > 0 ? (
+                      <>
+                        <span className="card-price sale">{parseInt(product.discount_price).toLocaleString('vi-VN')}đ</span>
+                        <span className="card-price original">{parseInt(product.price).toLocaleString('vi-VN')}đ</span>
+                      </>
+                    ) : (
+                      <span className="card-price">{parseInt(product.price).toLocaleString('vi-VN')}đ</span>
+                    )}
+                  </div>
                 </div>
                 <div className="card-footer">
                   <button className="edit-btn" onClick={() => openEditModal(product)}><Edit3 size={15} /> Sửa</button>
@@ -304,28 +379,40 @@ const ProductManagement = () => {
                   <div className="form-column-left">
                     <div className="upload-section">
                       <label>Hình ảnh (Tối đa 4)</label>
-                      <div className="upload-grid">
-                        <input type="file" id="p-images" multiple accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
-                        {previews.length < 4 && (
-                          <label htmlFor="p-images" className="upload-placeholder main">
-                            <Upload size={20} />
-                            <span>Thêm ảnh</span>
-                          </label>
-                        )}
-                        {previews.map((src, idx) => (
-                          <div key={idx} className={`preview-item animate-scale-up ${idx === 0 ? 'main-image-item' : ''}`}>
-                            <img src={src} alt="preview" />
-                            {idx === 0 && <div className="main-badge">Ảnh chính</div>}
-                            <div className="image-controls">
-                              {idx > 0 && (
-                                <button type="button" onClick={() => moveFile(idx, -1)} className="control-btn"><RotateCcw size={12} style={{ transform: 'rotate(90deg)' }} /></button>
-                              )}
-                              <button type="button" className="control-btn delete" onClick={() => removeFile(idx)}><X size={12} /></button>
-                            </div>
+                     <div className="upload-grid">
+                      <input type="file" id="p-images" multiple accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+                      
+                      {previews.length < 4 && (
+                        <label htmlFor="p-images" className="upload-placeholder main">
+                          <Upload size={20} />
+                          <span>Thêm ảnh</span>
+                        </label>
+                      )}
+
+                      {previews.map((src, idx) => (
+                        <div key={idx} className={`preview-item animate-scale-up ${idx === 0 ? 'main-image-item' : ''}`}>
+                          <img src={src} alt="preview" />
+                          
+                          {/* Badge đánh dấu ảnh chính */}
+                          {idx === 0 && <div className="main-badge">Ảnh chính</div>}
+                          
+                          <div className="image-controls">
+                            {/* Nút di chuyển */}
+                            {idx > 0 && (
+                              <button type="button" onClick={() => moveFile(idx, -1)} className="control-btn" title="Chuyển lên đầu">
+                                <RotateCcw size={12} style={{ transform: 'rotate(90deg)' }} />
+                              </button>
+                            )}
+                            
+                            {/* Nút xóa */}
+                            <button type="button" className="control-btn delete" onClick={() => removeFile(idx)} title="Xóa ảnh">
+                              <X size={12} />
+                            </button>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
+                      </div>
                     <div className="form-group mt-3">
                       <label>Mô tả sản phẩm</label>
                       <textarea name="description" defaultValue={editingProduct?.description || ""} rows="10" placeholder="Mô tả chi tiết..." style={{ minHeight: '220px' }} />
@@ -336,7 +423,25 @@ const ProductManagement = () => {
                       <label>Tên sản phẩm</label>
                       <input name="name" type="text" defaultValue={editingProduct?.name || ""} required />
                     </div>
-                    <div className="form-row">
+                    
+                    <div className="price-management-box">
+                       <div className="form-row">
+                        <div className="form-group">
+                          <label>Giá bán gốc (VND)</label>
+                          <input type="text" value={priceValue} onChange={(e) => setPriceValue(e.target.value.replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, ","))} required />
+                        </div>
+                        <div className="form-group">
+                          <label>Giá khuyến mãi (VND)</label>
+                          <input type="text" value={discountPriceValue} onChange={(e) => setDiscountPriceValue(e.target.value.replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, ","))} placeholder="Để trống nếu không giảm" />
+                        </div>
+                      </div>
+                      <div className="flash-sale-toggle">
+                        <input type="checkbox" id="isFlashSale" checked={isFlashSale} onChange={(e) => setIsFlashSale(e.target.checked)} />
+                        <label htmlFor="isFlashSale"><Zap size={14} fill={isFlashSale ? "#E10600" : "none"} /> Kích hoạt Flash Sale cho đợt hiện tại</label>
+                      </div>
+                    </div>
+
+                    <div className="form-row mt-2">
                       <div className="form-group">
                         <label><Layers size={14} /> Danh mục</label>
                         <select name="category_id" value={selectedCategory} required onChange={(e) => { setSelectedCategory(e.target.value); setSpecs({}); }}>
@@ -352,15 +457,9 @@ const ProductManagement = () => {
                         </select>
                       </div>
                     </div>
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Giá bán (VND)</label>
-                        <input type="text" value={priceValue} onChange={(e) => setPriceValue(e.target.value.replace(/\D/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, ","))} />
-                      </div>
-                      <div className="form-group">
-                        <label>Số lượng kho</label>
-                        <input type="number" value={stockValue} onChange={(e) => setStockValue(e.target.value)} required />
-                      </div>
+                    <div className="form-group">
+                      <label>Số lượng kho</label>
+                      <input type="number" value={stockValue} onChange={(e) => setStockValue(e.target.value)} required />
                     </div>
 
                     {/* DYNAMIC SPECS: Render dựa trên cấu hình của danh mục được chọn */}

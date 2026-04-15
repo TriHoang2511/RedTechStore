@@ -1,14 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
-import {
-  Search, Plus, Trash2, Edit3, X, FileSpreadsheet, FileText, Layers, Tag,
-  Monitor, Cpu, Battery, HardDrive, Smartphone, Tablet, Camera
-} from 'lucide-react';
+import { Search, Plus, Trash2, Edit3, X, FileSpreadsheet, FileText, Layers, Tag } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 import './CategoryManagement.css';
 
 // Map icon để render chuẩn từ tên string lưu trong DB
@@ -28,24 +22,6 @@ const CategoryManagement = () => {
   const [editingCategory, setEditingCategory] = useState(null);
   const [categoryName, setCategoryName] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-
-  // --- LOGIC THÔNG SỐ KỸ THUẬT (MỚI THÊM) ---
-  const [attributes, setAttributes] = useState([]);
-
-  const addAttribute = () => {
-    setAttributes([...attributes, { label: "", key: "", icon: "" }]);
-  };
-
-  const removeAttribute = (index) => {
-    setAttributes(attributes.filter((_, i) => i !== index));
-  };
-
-  const handleAttrChange = (index, field, value) => {
-    const updated = [...attributes];
-    updated[index][field] = value;
-    setAttributes(updated);
-  };
-  // ------------------------------------------
 
   const fetchCategories = async () => {
     try {
@@ -83,15 +59,25 @@ const CategoryManagement = () => {
     }
   };
 
-  const handleDelete = async (id, name) => {
-    if (window.confirm(`Xóa danh mục ${name}?`)) {
-      try {
-        await axios.delete(`http://localhost:5000/admin/categories/delete/${id}`);
-        toast.success("Đã xóa");
-        fetchCategories();
-      } catch (err) {
-        toast.error(err.response?.data?.message || "Lỗi khi xóa");
-      }
+  // Mở modal xác nhận thay vì confirm mặc định
+  const confirmDelete = (cat) => {
+    setCategoryToDelete(cat);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!categoryToDelete) return;
+    
+    const loading = toast.loading("Đang xóa...");
+    try {
+      await axios.delete(`http://localhost:5000/admin/categories/delete/${categoryToDelete.id}`);
+      toast.success("Đã xóa danh mục thành công", { id: loading });
+      setIsDeleteModalOpen(false);
+      setCategoryToDelete(null);
+      fetchCategories();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Không thể xóa do ràng buộc dữ liệu", { id: loading });
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -106,7 +92,7 @@ const CategoryManagement = () => {
         <header className="page-header-v2">
           <div className="header-content">
             <h1>Quản lý danh mục</h1>
-            <p>Phân loại và quản lý liên kết thương hiệu.</p>
+            <p>Phân loại và quản lý liên kết thương hiệu cho hệ thống RedTech.</p>
           </div>
           <button className="btn-create-account" onClick={() => {
             setEditingCategory(null);
@@ -157,7 +143,7 @@ const CategoryManagement = () => {
                           <Tag size={12} /> {cat.brandCount || 0} thương hiệu
                         </span>
                         <p className="brand-names-list">
-                          {cat.brandNames || <span className="text-muted">Chưa có liên kết</span>}
+                          {cat.brandNames || <span className="text-muted italic">Chưa có liên kết</span>}
                         </p>
                       </div>
                     </td>
@@ -166,14 +152,7 @@ const CategoryManagement = () => {
                     </td>
                     <td className="text-right">
                       <div className="action-btns" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                        <button className="action-edit-btn" onClick={() => {
-                          setEditingCategory(cat);
-                          setCategoryName(cat.name);
-                          // Load lại thông số khi sửa
-                          const oldAttrs = cat.attributes_json ? JSON.parse(cat.attributes_json) : [];
-                          setAttributes(oldAttrs);
-                          setIsModalOpen(true);
-                        }}><Edit3 size={17} /></button>
+                        <button className="action-edit-btn" onClick={() => { setEditingCategory(cat); setCategoryName(cat.name); setIsModalOpen(true); }}><Edit3 size={17} /></button>
                         <button className="action-delete-btn" onClick={() => handleDelete(cat.id, cat.name)}><Trash2 size={17} /></button>
                       </div>
                     </td>
@@ -184,7 +163,7 @@ const CategoryManagement = () => {
           </div>
         </div>
 
-        {isModalOpen && (
+         {isModalOpen && (
           <div className="modal-overlay">
             <div className="modal-container" style={{ maxWidth: '600px' }}>
               <div className="modal-header">
@@ -201,8 +180,8 @@ const CategoryManagement = () => {
                     type="text"
                     value={categoryName}
                     onChange={(e) => setCategoryName(e.target.value)}
-                    placeholder="Ví dụ: Thiết bị thông minh..."
-                    required
+                    placeholder="Ví dụ: Thiết bị thông minh..." 
+                    required 
                     autoFocus
                   />
                 </div>
@@ -266,6 +245,42 @@ const CategoryManagement = () => {
                   <button type="submit" className="btn-submit">{editingCategory ? "Lưu thay đổi" : "Xác nhận thêm"}</button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+      {/* --- MODAL XÁC NHẬN XÓA (PHONG CÁCH REDTECH MỚI) --- */}
+        {isDeleteModalOpen && (
+          <div className="modal-overlay">
+            <div className="modal-container delete-confirm-modal animate-scale-up">
+              <div className="delete-icon-wrapper">
+                <AlertTriangle size={40} color="#E10600" />
+              </div>
+              
+              <h3 style={{ marginBottom: '10px', fontWeight: '700' }}>Xác nhận xóa danh mục?</h3>
+              
+              <p style={{ color: '#64748b', lineHeight: '1.6', marginBottom: '25px' }}>
+                Bạn có chắc chắn muốn xóa danh mục 
+                <strong> {categoryToDelete?.name}</strong>? 
+                Hành động này sẽ xóa vĩnh viễn và có thể ảnh hưởng đến các sản phẩm thuộc danh mục này.
+              </p>
+
+              <div className="modal-footer" style={{ justifyContent: 'center', gap: '12px' }}>
+                <button 
+                  className="btn-cancel" 
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  style={{ minWidth: '120px' }}
+                >
+                  Hủy bỏ
+                </button>
+                <button 
+                  className="btn-confirm-delete" 
+                  onClick={handleDelete}
+                  style={{ minWidth: '120px', backgroundColor: '#E10600' }}
+                >
+                  Xác nhận xóa
+                </button>
+              </div>
             </div>
           </div>
         )}

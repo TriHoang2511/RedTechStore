@@ -7,6 +7,10 @@ const adminBrands = require('./routes/adminBrands');
 const adminProducts = require('./routes/adminProduct');
 const adminAuth = require('./routes/adminAuth');
 const adminDashboard = require('./routes/adminDashboard');
+const adminOrders = require('./routes/adminOrders');
+const adminReview = require('./routes/adminReview');
+const flashSaleRoutes = require('./routes/flashSaleRoutes');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -17,6 +21,10 @@ app.use('/admin/categories', adminCategories);
 app.use('/admin/brands', adminBrands);
 app.use('/admin/products', adminProducts);
 app.use('/admin/dashboard', adminDashboard);
+app.use('/admin/orders', adminOrders);
+app.use('/admin/reviews', adminReview);
+app.use('/admin/flash-sales', flashSaleRoutes);
+
 const PORT = 5000; 
 
 

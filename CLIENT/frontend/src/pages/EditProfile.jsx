@@ -1,38 +1,47 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Lock, Save, CircleUserRound } from 'lucide-react';
+import { useLocation } from 'react-router-dom'; // Import thêm useLocation
+import { User, Mail, Lock, Save, CircleUserRound, ShoppingBag, CreditCard } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
+import MyOrders from './MyOrders'; 
+import MemberCard from '../components/MemberCard'; 
 import './EditProfile.css';
 
 const EditProfile = () => {
+    const location = useLocation(); // Khởi tạo hook để lấy state từ navigate
+    const [activeTab, setActiveTab] = useState('profile'); 
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
+        memberRank: 'Member',
+        totalPoints: 0,
         currentPassword: '',
         newPassword: '',
         confirmPassword: ''
     });
 
-    // Lấy thông tin user và token từ localStorage
+    // Lấy userId từ localStorage an toàn
     const userStorage = JSON.parse(localStorage.getItem('user'));
-    const token = localStorage.getItem('token');
     const userId = userStorage?.id;
 
-    // 1. Lấy dữ liệu user từ database khi vào trang
+    // useEffect xử lý việc đổi tab khi nhận state từ trang khác (vd: Checkout)
+    useEffect(() => {
+        if (location.state?.activeTab) {
+            setActiveTab(location.state.activeTab);
+        }
+    }, [location.state]);
+
     useEffect(() => {
         const fetchUserData = async () => {
-            if (!userId) {
-                toast.error("Vui lòng đăng nhập để xem thông tin!");
-                return;
-            }
-
+            if (!userId) return;
             try {
-                // Gọi đúng endpoint /profile/:id để tránh lỗi 404
                 const res = await axios.get(`http://localhost:3005/client/auth/profile/${userId}`);
                 setFormData(prev => ({
                     ...prev,
                     fullName: res.data.fullname,
-                    email: res.data.email
+                    email: res.data.email,
+                    memberRank: res.data.member_rank || 'Member',
+                    totalPoints: res.data.total_points || 0
                 }));
             } catch (err) {
                 console.error("Fetch error:", err);
@@ -46,17 +55,13 @@ const EditProfile = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    // 2. Xử lý cập nhật thông tin
     const handleSubmit = async (e) => {
         e.preventDefault();
-
-        // Kiểm tra mật khẩu mới
         if (formData.newPassword && formData.newPassword !== formData.confirmPassword) {
             return toast.error("Mật khẩu xác nhận không khớp!");
         }
 
         try {
-            // Gửi userId trong body theo yêu cầu của Backend (vì không dùng middleware)
             const res = await axios.put('http://localhost:3005/client/auth/update-profile', {
                 userId: userId,
                 fullName: formData.fullName,
@@ -66,12 +71,10 @@ const EditProfile = () => {
             });
 
             toast.success(res.data.message);
-
-            // Cập nhật lại localStorage để Navbar/Header hiển thị tên mới ngay lập tức
+            
             const updatedUser = { ...userStorage, fullname: formData.fullName, email: formData.email };
             localStorage.setItem('user', JSON.stringify(updatedUser));
 
-            // Reset các ô nhập mật khẩu
             setFormData(prev => ({
                 ...prev,
                 currentPassword: '',
@@ -79,123 +82,152 @@ const EditProfile = () => {
                 confirmPassword: ''
             }));
             
-            // Có thể dùng window.dispatchEvent(new Event('storage')) để các component khác cập nhật theo
             window.dispatchEvent(new Event('storage'));
-
         } catch (err) {
             toast.error(err.response?.data?.message || "Lỗi cập nhật dữ liệu");
         }
     };
 
+    if (!userId) {
+        return <div className="login-required">Vui lòng đăng nhập để tiếp tục.</div>;
+    }
+
     return (
         <div className="profile-edit-page" style={{ fontFamily: 'Cabin, sans-serif' }}>
             <div className="container profile-container">
-                {/* SIDEBAR TỐI GIẢN */}
+                {/* SIDEBAR */}
                 <aside className="profile-sidebar">
                     <div className="user-avatar-section">
                         <div className="avatar-wrapper">
-                            <CircleUserRound size={80} strokeWidth={1.2} color="var(--primary-color)" />
+                            <CircleUserRound size={80} strokeWidth={1.2} color="#e63946" />
                         </div>
                         <h3>{formData.fullName || "Người dùng"}</h3>
-                        <p className="user-role">Thành viên RedTech</p>
+                        <div className="rank-label">
+                            <span className={`badge-${formData.memberRank.toLowerCase()}`}>
+                                {formData.memberRank}
+                            </span>
+                        </div>
                     </div>
                     <nav className="profile-nav">
-                        <button className="active">Thông tin cá nhân</button>
-                        <button onClick={() => toast('Tính năng đang phát triển!')}>Đơn hàng của tôi</button>
+                        <button 
+                            className={activeTab === 'profile' ? 'active' : ''} 
+                            onClick={() => setActiveTab('profile')}
+                        >
+                            <User size={18} /> Thông tin tài khoản
+                        </button>
+                        <button 
+                            className={activeTab === 'orders' ? 'active' : ''} 
+                            onClick={() => setActiveTab('orders')}
+                        >
+                            <ShoppingBag size={18} /> Đơn hàng đã mua
+                        </button>
                     </nav>
                 </aside>
 
-                {/* FORM CHỈNH SỬA */}
+                {/* CONTENT AREA */}
                 <main className="profile-content">
-                    <div className="content-header">
-                        <h2>Thiết lập <span>tài khoản</span></h2>
-                        <p>Quản lý thông tin hồ sơ để bảo mật tài khoản</p>
-                    </div>
-
-                    <form onSubmit={handleSubmit} className="edit-form">
-                        {/* Phần 1: Thông tin cơ bản */}
-                        <div className="form-section">
-                            <h4 className="section-title"><User size={18} /> Thông tin cơ bản</h4>
-                            <div className="form-group">
-                                <label>Họ và tên</label>
-                                <div className="input-icon-wrapper">
-                                    <User className="input-icon" size={20} />
-                                    <input 
-                                        type="text" 
-                                        name="fullName" 
-                                        value={formData.fullName} 
-                                        onChange={handleChange} 
-                                        required 
-                                        placeholder="Nhập họ và tên"
-                                    />
-                                </div>
+                    {activeTab === 'profile' ? (
+                        <div className="tab-fade-in">
+                            {/* PHẦN THẺ THÀNH VIÊN */}
+                            <div className="section-membership-card">
+                                <h4 className="section-title"><CreditCard size={18} /> Thẻ thành viên RedTech</h4>
+                                <MemberCard user={{
+                                    fullname: formData.fullName,
+                                    email: formData.email,
+                                    member_rank: formData.memberRank,
+                                    total_points: formData.totalPoints
+                                }} />
                             </div>
 
-                            <div className="form-group">
-                                <label>Địa chỉ Email</label>
-                                <div className="input-icon-wrapper">
-                                    <Mail className="input-icon" size={20} />
-                                    <input 
-                                        type="email" 
-                                        name="email" 
-                                        value={formData.email} 
-                                        onChange={handleChange} 
-                                        required 
-                                        placeholder="example@gmail.com"
-                                    />
-                                </div>
+                            <hr className="divider" />
+
+                            <div className="content-header">
+                                <h2>Cập nhật <span>hồ sơ</span></h2>
+                                <p>Thông tin của bạn được bảo mật trên hệ thống RedTech Store</p>
                             </div>
+
+                            <form onSubmit={handleSubmit} className="edit-form">
+                                <div className="form-section">
+                                    <h4 className="section-title"><User size={18} /> Thông tin cá nhân</h4>
+                                    <div className="form-group">
+                                        <label>Họ và tên</label>
+                                        <div className="input-icon-wrapper">
+                                            <User className="input-icon" size={20} />
+                                            <input 
+                                                type="text" 
+                                                name="fullName" 
+                                                value={formData.fullName} 
+                                                onChange={handleChange} 
+                                                required 
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Địa chỉ Email</label>
+                                        <div className="input-icon-wrapper">
+                                            <Mail className="input-icon" size={20} />
+                                            <input 
+                                                type="email" 
+                                                name="email" 
+                                                value={formData.email} 
+                                                onChange={handleChange} 
+                                                required 
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="form-section">
+                                    <h4 className="section-title"><Lock size={18} /> Đổi mật khẩu</h4>
+                                    <div className="form-group">
+                                        <label>Mật khẩu hiện tại</label>
+                                        <div className="input-icon-wrapper">
+                                            <Lock className="input-icon" size={20} />
+                                            <input 
+                                                type="password" 
+                                                name="currentPassword" 
+                                                value={formData.currentPassword} 
+                                                onChange={handleChange} 
+                                                placeholder="Nhập mật khẩu cũ để xác nhận"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid-inputs">
+                                        <div className="form-group">
+                                            <label>Mật khẩu mới</label>
+                                            <input 
+                                                type="password" 
+                                                name="newPassword" 
+                                                value={formData.newPassword} 
+                                                onChange={handleChange} 
+                                                placeholder="Mới (8+ ký tự)"
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>Xác nhận lại</label>
+                                            <input 
+                                                type="password" 
+                                                name="confirmPassword" 
+                                                value={formData.confirmPassword} 
+                                                onChange={handleChange} 
+                                                placeholder="Nhập lại mật khẩu mới"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" className="btn-save-profile">
+                                    <Save size={20} /> Cập nhật ngay
+                                </button>
+                            </form>
                         </div>
-
-                        {/* Phần 2: Đổi mật khẩu */}
-                        <div className="form-section">
-                            <h4 className="section-title"><Lock size={18} /> Bảo mật & Mật khẩu</h4>
-                            <p className="form-note">
-                                * Chỉ điền nếu bạn muốn thay đổi email hoặc mật khẩu mới.
-                            </p>
-                            
-                            <div className="form-group">
-                                <label>Mật khẩu hiện tại</label>
-                                <div className="input-icon-wrapper">
-                                    <Lock className="input-icon" size={20} />
-                                    <input 
-                                        type="password" 
-                                        name="currentPassword" 
-                                        value={formData.currentPassword} 
-                                        onChange={handleChange} 
-                                        placeholder="••••••••"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid-inputs">
-                                <div className="form-group">
-                                    <label>Mật khẩu mới</label>
-                                    <input 
-                                        type="password" 
-                                        name="newPassword" 
-                                        value={formData.newPassword} 
-                                        onChange={handleChange} 
-                                        placeholder="Tối thiểu 8 ký tự"
-                                    />
-                                </div>
-                                <div className="form-group">
-                                    <label>Xác nhận mật khẩu mới</label>
-                                    <input 
-                                        type="password" 
-                                        name="confirmPassword" 
-                                        value={formData.confirmPassword} 
-                                        onChange={handleChange} 
-                                        placeholder="Nhập lại mật khẩu mới"
-                                    />
-                                </div>
-                            </div>
+                    ) : (
+                        <div className="tab-fade-in">
+                            <MyOrders userId={userId} />
                         </div>
-
-                        <button type="submit" className="btn-save-profile">
-                            <Save size={20} /> Lưu thay đổi
-                        </button>
-                    </form>
+                    )}
                 </main>
             </div>
         </div>
